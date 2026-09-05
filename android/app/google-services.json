@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "718105574922",
+    "project_id": "kisela-a5cd9",
+    "storage_bucket": "kisela-a5cd9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:718105574922:android:0c180f040c986f580029f3",
+        "android_client_info": {
+          "package_name": "com.example.kisela"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAyK0p--9d7UHnNIzoL7hG2r4aB0Fq2OuQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
