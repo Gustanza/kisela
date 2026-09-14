@@ -1,136 +1,186 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const MyApp());
+import 'firebase_options.dart';
+import 'screens/auth_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'services/firestore_service.dart';
+import 'services/notification_service.dart';
+import 'services/update_service.dart';
+import 'theme.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  runApp(const KiselaApp());
+  // Fire-and-forget, deliberately not awaited: this shows a native
+  // permission dialog, and awaiting it here (before runApp) used to hang
+  // the whole app on Android's launch icon forever on devices where that
+  // dialog doesn't resolve cleanly before the first Flutter frame attaches.
+  unawaited(NotificationService.instance.initialize());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class KiselaApp extends StatelessWidget {
+  const KiselaApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: 'Kisela',
+      debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(),
+      home: const _UpdateGate(child: AuthGate()),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+/// Checks the Play Store for updates on launch and whenever the app comes
+/// back to the foreground. A release marked high-priority in Play Console
+/// forces a blocking update via Play's own UI; anything else gets a quiet
+/// "restart to update" banner the user can dismiss and act on later.
+class _UpdateGate extends StatefulWidget {
+  final Widget child;
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+  const _UpdateGate({required this.child});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<_UpdateGate> createState() => _UpdateGateState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _UpdateGateState extends State<_UpdateGate> with WidgetsBindingObserver {
+  bool _optionalPromptShown = false;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
   }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkForUpdate();
+    }
+  }
+
+  Future<void> _checkForUpdate() async {
+    final result = await UpdateService.checkForUpdate();
+    if (!mounted) return;
+
+    switch (result.action) {
+      case UpdateAction.forced:
+        await UpdateService.performImmediateUpdate();
+        break;
+      case UpdateAction.optional:
+        if (!_optionalPromptShown) {
+          _optionalPromptShown = true;
+          _startFlexibleUpdate();
+        }
+        break;
+      case UpdateAction.none:
+        break;
+    }
+  }
+
+  Future<void> _startFlexibleUpdate() async {
+    final downloaded = await UpdateService.startFlexibleUpdate();
+    if (!mounted || !downloaded) return;
+
+    ScaffoldMessenger.of(context).showMaterialBanner(
+      MaterialBanner(
+        content: const Text('An update has been downloaded.'),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                ScaffoldMessenger.of(context).hideCurrentMaterialBanner(),
+            child: const Text('Later'),
+          ),
+          TextButton(
+            onPressed: UpdateService.completeFlexibleUpdate,
+            child: const Text('Restart'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, authSnapshot) {
+        if (authSnapshot.connectionState == ConnectionState.waiting) {
+          return const _LoadingScreen();
+        }
+        final user = authSnapshot.data;
+        if (user == null) {
+          return const AuthScreen();
+        }
+        return _ProfileGate(uid: user.uid);
+      },
     );
   }
 }
 
-// Line below has gotta be added
+class _ProfileGate extends StatefulWidget {
+  final String uid;
 
-/*
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+  const _ProfileGate({required this.uid});
 
-// ...
+  @override
+  State<_ProfileGate> createState() => _ProfileGateState();
+}
 
-await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-);
+class _ProfileGateState extends State<_ProfileGate> {
+  final _firestoreService = FirestoreService();
 
-*/
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder(
+      stream: _firestoreService.profileStream(widget.uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _LoadingScreen();
+        }
+        final profile = snapshot.data;
+        if (profile == null) {
+          return const OnboardingScreen();
+        }
+        return HomeScreen(myProfile: profile);
+      },
+    );
+  }
+}
+
+class _LoadingScreen extends StatelessWidget {
+  const _LoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      ),
+    );
+  }
+}

@@ -1,4 +1,4 @@
-package com.example.kisela
+package com.haflaway.kisela
 
 import io.flutter.embedding.android.FlutterActivity
 
