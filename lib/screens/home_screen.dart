@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/app_user.dart';
 import '../services/notification_service.dart';
 import 'discover_screen.dart';
+import 'encounters_screen.dart';
 import 'matches_screen.dart';
-import 'passes_screen.dart';
 import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -45,8 +45,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final screens = [
       DiscoverScreen(myProfile: widget.myProfile),
-      const MatchesScreen(),
-      PassesScreen(myProfile: widget.myProfile),
+      EncountersScreen(myProfile: widget.myProfile),
+      MatchesScreen(myProfile: widget.myProfile),
       ProfileScreen(myProfile: widget.myProfile),
     ];
 
@@ -63,14 +63,14 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Discover',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.people_alt_outlined),
+            activeIcon: Icon(Icons.people_alt),
+            label: 'Encounters',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.favorite_outline),
             activeIcon: Icon(Icons.favorite),
             label: 'Matches',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history_outlined),
-            activeIcon: Icon(Icons.history),
-            label: 'Passed',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

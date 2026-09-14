@@ -35,9 +35,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.myProfile.name);
-    _ageController = TextEditingController(text: widget.myProfile.age.toString());
+    _ageController = TextEditingController(
+      text: widget.myProfile.age.toString(),
+    );
     _bioController = TextEditingController(text: widget.myProfile.bio);
-    _gender = widget.myProfile.gender.isNotEmpty ? widget.myProfile.gender : 'Woman';
+    _gender = widget.myProfile.gender.isNotEmpty
+        ? widget.myProfile.gender
+        : 'Woman';
   }
 
   @override
@@ -70,7 +74,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _newPhotoFile!,
         );
       }
-      final age = int.tryParse(_ageController.text.trim()) ?? widget.myProfile.age;
+      final age =
+          int.tryParse(_ageController.text.trim()) ?? widget.myProfile.age;
       final updated = AppUser(
         uid: widget.myProfile.uid,
         name: _nameController.text.trim(),
@@ -81,9 +86,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       await _firestoreService.saveProfile(updated);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Profile updated')));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -97,6 +101,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
         title: const Text('Profile'),
         actions: [
@@ -109,80 +114,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: GestureDetector(
-                  onTap: _pickPhoto,
-                  child: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundColor: AppColors.surface,
-                        backgroundImage: _newPhotoFile != null
-                            ? FileImage(_newPhotoFile!)
-                            : (widget.myProfile.photoUrl.isNotEmpty
-                                ? CachedNetworkImageProvider(
-                                    widget.myProfile.photoUrl,
-                                  ) as ImageProvider
-                                : null),
-                        child: _newPhotoFile == null &&
-                                widget.myProfile.photoUrl.isEmpty
-                            ? const Icon(Icons.person,
-                                size: 48, color: Colors.grey)
-                            : null,
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(
-                            color: AppColors.primary,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.edit,
-                              size: 16, color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _buildPhotoPreview(),
               const SizedBox(height: 28),
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(hintText: 'First name'),
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _ageController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(hintText: 'Age'),
-              ),
-              const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                initialValue: _gender,
-                items: const [
-                  DropdownMenuItem(value: 'Woman', child: Text('Woman')),
-                  DropdownMenuItem(value: 'Man', child: Text('Man')),
-                  DropdownMenuItem(value: 'Other', child: Text('Other')),
-                ],
-                onChanged: (value) {
-                  if (value != null) setState(() => _gender = value);
-                },
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _bioController,
-                maxLines: 3,
-                maxLength: 150,
-                decoration: const InputDecoration(hintText: 'About you'),
-              ),
-              const SizedBox(height: 8),
+              _buildFormCard(),
+              const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _isSaving ? null : _save,
                 child: _isSaving
@@ -199,6 +138,187 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoPreview() {
+    return GestureDetector(
+      onTap: _pickPhoto,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: SizedBox(
+          height: 360,
+          width: double.infinity,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _newPhotoFile != null
+                  ? Image.file(_newPhotoFile!, fit: BoxFit.cover)
+                  : (widget.myProfile.photoUrl.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: widget.myProfile.photoUrl,
+                            fit: BoxFit.cover,
+                            errorWidget: (context, url, error) => _emptyPhoto(),
+                          )
+                        : _emptyPhoto()),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Colors.black87],
+                    ),
+                  ),
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([
+                      _nameController,
+                      _ageController,
+                    ]),
+                    builder: (context, _) {
+                      final name = _nameController.text.trim().isEmpty
+                          ? 'Your name'
+                          : _nameController.text.trim();
+                      final age = _ageController.text.trim();
+                      return Text(
+                        age.isEmpty ? name : '$name, $age',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 14,
+                right: 14,
+                child: Material(
+                  shape: const CircleBorder(),
+                  color: Colors.black45,
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _pickPhoto,
+                    child: const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: Icon(
+                        Icons.camera_alt,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyPhoto() {
+    return Container(
+      color: Colors.grey[300],
+      child: const Center(
+        child: Icon(Icons.person, size: 84, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildFormCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionLabel('Basic Info'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: 'First name',
+              prefixIcon: Icon(Icons.person_outline),
+            ),
+            textCapitalization: TextCapitalization.words,
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _ageController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Age',
+                    prefixIcon: Icon(Icons.cake_outlined),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _gender,
+                  decoration: const InputDecoration(
+                    labelText: 'Gender',
+                    prefixIcon: Icon(Icons.wc_outlined),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Woman', child: Text('Woman')),
+                    DropdownMenuItem(value: 'Man', child: Text('Man')),
+                    DropdownMenuItem(value: 'Other', child: Text('Other')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => _gender = value);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _sectionLabel('About'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _bioController,
+            maxLines: 3,
+            maxLength: 150,
+            decoration: const InputDecoration(
+              labelText: 'About you',
+              alignLabelWithHint: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: Colors.grey[500],
+        letterSpacing: 0.8,
       ),
     );
   }

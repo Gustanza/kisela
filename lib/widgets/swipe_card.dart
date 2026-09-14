@@ -9,12 +9,14 @@ class SwipeCard extends StatefulWidget {
   final AppUser user;
   final void Function(SwipeDirection direction) onSwiped;
   final bool isFront;
+  final VoidCallback? onTap;
 
   const SwipeCard({
     super.key,
     required this.user,
     required this.onSwiped,
     required this.isFront,
+    this.onTap,
   });
 
   @override
@@ -93,6 +95,7 @@ class SwipeCardState extends State<SwipeCard>
     return GestureDetector(
       onPanUpdate: widget.isFront ? _onPanUpdate : null,
       onPanEnd: widget.isFront ? _onPanEnd : null,
+      onTap: widget.isFront ? widget.onTap : null,
       child: Transform.translate(
         offset: _dragOffset,
         child: Transform.rotate(

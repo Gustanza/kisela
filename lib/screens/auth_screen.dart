@@ -16,7 +16,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  bool _isSignUp = true;
+  bool _isSignUp = false;
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorText;
@@ -91,7 +91,17 @@ class _AuthScreenState extends State<AuthScreen> {
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.grey, fontSize: 15),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 28),
+                  _AuthModeToggle(
+                    isSignUp: _isSignUp,
+                    onChanged: _isLoading
+                        ? null
+                        : (value) => setState(() {
+                              _isSignUp = value;
+                              _errorText = null;
+                            }),
+                  ),
+                  const SizedBox(height: 28),
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
@@ -156,24 +166,74 @@ class _AuthScreenState extends State<AuthScreen> {
                           )
                         : Text(_isSignUp ? 'Create Account' : 'Log In'),
                   ),
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () => setState(() {
-                              _isSignUp = !_isSignUp;
-                              _errorText = null;
-                            }),
-                    child: Text(
-                      _isSignUp
-                          ? 'Already have an account? Log in'
-                          : "Don't have an account? Sign up",
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AuthModeToggle extends StatelessWidget {
+  final bool isSignUp;
+  final ValueChanged<bool>? onChanged;
+
+  const _AuthModeToggle({required this.isSignUp, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Stack(
+        children: [
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment:
+                isSignUp ? Alignment.centerRight : Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: AppColors.gradient,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(child: _buildTab('Log In', selected: !isSignUp)),
+              Expanded(child: _buildTab('Sign Up', selected: isSignUp)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTab(String label, {required bool selected}) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onChanged == null
+          ? null
+          : () => onChanged!(label == 'Sign Up'),
+      child: Center(
+        child: AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 220),
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : Colors.grey,
+          ),
+          child: Text(label),
         ),
       ),
     );

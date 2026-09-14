@@ -40,9 +40,10 @@ class FirestoreService {
     return myGender != candidateGender;
   }
 
-  /// Fetches a batch of candidate profiles for the discover deck,
-  /// excluding the current user, anyone already swiped on, and anyone
-  /// outside the current user's shown-to gender group.
+  /// Fetches a batch of candidate profiles for the discover deck, excluding
+  /// the current user, anyone already liked, and anyone outside the current
+  /// user's shown-to gender group. People passed on are deliberately kept
+  /// in - the deck loops back over them rather than exhausting for good.
   Future<List<AppUser>> getDiscoverCandidates(
     String myUid, {
     required String myGender,
@@ -52,13 +53,16 @@ class FirestoreService {
         .doc(myUid)
         .collection('targets')
         .get();
-    final swipedIds = swipedSnap.docs.map((d) => d.id).toSet();
+    final likedIds = swipedSnap.docs
+        .where((d) => d.data()['liked'] == true)
+        .map((d) => d.id)
+        .toSet();
 
     final usersSnap = await _users.limit(100).get();
     final candidates = usersSnap.docs
         .where((d) =>
             d.id != myUid &&
-            !swipedIds.contains(d.id) &&
+            !likedIds.contains(d.id) &&
             _isOnboarded(d.data()) &&
             _canSee(myGender, d.data()['gender'] as String? ?? ''))
         .map((d) => AppUser.fromMap(d.id, d.data()))
@@ -109,36 +113,18 @@ class FirestoreService {
     return targetUid;
   }
 
-  /// People you've passed on, oldest pass first. Re-passing (see [rePass])
-  /// bumps the timestamp so they sink back to the bottom of this queue
-  /// instead of disappearing - nothing here is ever deleted automatically.
-  Stream<QuerySnapshot<Map<String, dynamic>>> passesStream(String myUid) {
-    return _db
-        .collection('swipes')
-        .doc(myUid)
-        .collection('targets')
-        .where('liked', isEqualTo: false)
-        .orderBy('at')
-        .snapshots();
-  }
-
-  /// Passing again from the Passes screen doesn't remove them - it just
-  /// refreshes the timestamp so they move to the bottom of the queue.
-  Future<void> rePass({required String myUid, required String targetUid}) {
-    return _db
-        .collection('swipes')
-        .doc(myUid)
-        .collection('targets')
-        .doc(targetUid)
-        .set({'liked': false, 'at': FieldValue.serverTimestamp()});
-  }
-
   Stream<QuerySnapshot<Map<String, dynamic>>> matchesStream(String myUid) {
     return _db
         .collection('matches')
         .where('users', arrayContains: myUid)
         .orderBy('lastMessageAt', descending: true)
         .snapshots();
+  }
+
+  Future<DateTime?> getMatchCreatedAt(String matchId) async {
+    final doc = await _db.collection('matches').doc(matchId).get();
+    final timestamp = doc.data()?['createdAt'] as Timestamp?;
+    return timestamp?.toDate();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> messagesStream(String matchId) {

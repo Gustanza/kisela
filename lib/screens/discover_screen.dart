@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../widgets/match_dialog.dart';
 import '../widgets/swipe_card.dart';
 import 'chat_screen.dart';
+import 'profile_detail_screen.dart';
 
 class DiscoverScreen extends StatefulWidget {
   final AppUser myProfile;
@@ -21,9 +22,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   final _authService = AuthService();
   final _firestoreService = FirestoreService();
 
+  // The full batch fetched from Firestore. [_candidates] is drained as the
+  // user swipes through it; once empty we refill from this pool (minus
+  // anyone liked so far) instead of leaving the deck empty, so passed-on
+  // people loop back around like a playlist repeating while liked people
+  // drop out of the rotation for good.
+  List<AppUser> _pool = [];
   List<AppUser> _candidates = [];
   bool _isLoading = true;
   GlobalKey<SwipeCardState> _frontCardKey = GlobalKey<SwipeCardState>();
+  final Set<String> _shownMatchUids = {};
+  final Set<String> _likedUids = {};
 
   @override
   void initState() {
@@ -40,7 +49,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
     if (!mounted) return;
     setState(() {
-      _candidates = candidates;
+      _pool = candidates;
+      _candidates = List.of(candidates);
+      _likedUids.clear();
       _frontCardKey = GlobalKey<SwipeCardState>();
       _isLoading = false;
     });
@@ -56,10 +67,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
     setState(() {
       _candidates.removeWhere((c) => c.uid == target.uid);
+      if (direction == SwipeDirection.like) _likedUids.add(target.uid);
+      if (_candidates.isEmpty) {
+        final remaining =
+            _pool.where((u) => !_likedUids.contains(u.uid)).toList();
+        if (remaining.isNotEmpty) {
+          _candidates = remaining..shuffle();
+        }
+      }
       _frontCardKey = GlobalKey<SwipeCardState>();
     });
 
-    if (matchedUid != null && mounted) {
+    if (matchedUid != null && mounted && _shownMatchUids.add(matchedUid)) {
       _showMatch(target);
     }
   }
@@ -76,7 +95,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         );
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => ChatScreen(matchId: matchId, otherUser: matchedUser),
+            builder: (_) => ChatScreen(
+              matchId: matchId,
+              otherUser: matchedUser,
+              myProfile: widget.myProfile,
+            ),
           ),
         );
       },
@@ -85,6 +108,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   void _buttonSwipe(SwipeDirection direction) {
     _frontCardKey.currentState?.swipeProgrammatically(direction);
+  }
+
+  Future<void> _openProfile(AppUser user) async {
+    final direction = await Navigator.of(context).push<SwipeDirection>(
+      MaterialPageRoute(builder: (_) => ProfileDetailScreen(user: user)),
+    );
+    if (direction != null && mounted) {
+      _frontCardKey.currentState?.swipeProgrammatically(direction);
+    }
   }
 
   @override
@@ -158,6 +190,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             user: user,
             isFront: isFront,
             onSwiped: (direction) => _handleSwiped(user, direction),
+            onTap: isFront ? () => _openProfile(user) : null,
           );
         }).toList(),
       ),

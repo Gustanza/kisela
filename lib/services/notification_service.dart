@@ -99,7 +99,7 @@ class NotificationService {
 
   void _handleNotificationTap(String? type) {
     if (type == 'match' || type == 'message') {
-      NotificationNavigation.instance.requestTab(1);
+      NotificationNavigation.instance.requestTab(2);
     }
   }
 
